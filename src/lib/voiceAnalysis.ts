@@ -51,7 +51,7 @@ export function sigmoid(x: number): number {
 }
 
 /** YIN pitch detector. Returns f0 in Hz, or null if no reliable pitch is found. */
-export function estimateF0Yin(frame: Float32Array, sampleRate: number): number | null {
+export function estimateF0Yin(frame: Float32Array, sampleRate: number, threshold = YIN_THRESHOLD): number | null {
   const tauMin = Math.max(2, Math.floor(sampleRate / MAX_F0));
   const tauMax = Math.ceil(sampleRate / MIN_F0);
   const w = frame.length - tauMax;
@@ -77,7 +77,7 @@ export function estimateF0Yin(frame: Float32Array, sampleRate: number): number |
 
   let tauEstimate = -1;
   for (let tau = tauMin; tau < tauMax; tau++) {
-    if (cmnd[tau] < YIN_THRESHOLD) {
+    if (cmnd[tau] < threshold) {
       while (tau + 1 < tauMax && cmnd[tau + 1] < cmnd[tau]) tau++;
       tauEstimate = tau;
       break;

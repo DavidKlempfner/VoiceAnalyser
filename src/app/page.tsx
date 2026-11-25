@@ -1,79 +1,25 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
-import AnalysisResults from "@/components/AnalysisResults";
-import VoiceRecorder from "@/components/VoiceRecorder";
-import { analyzeBlob, type VoiceAnalysisResult } from "@/lib/voiceAnalysis";
-
-type Status = "idle" | "analyzing" | "results";
+import Link from "next/link";
 
 export default function Home() {
-  const [status, setStatus] = useState<Status>("idle");
-  const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-    };
-  }, [audioUrl]);
-
-  const handleRecorded = useCallback(async (blob: Blob) => {
-    setError(null);
-    setAudioUrl(URL.createObjectURL(blob));
-    setStatus("analyzing");
-    try {
-      setResult(await analyzeBlob(blob));
-      setStatus("results");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed.");
-      setStatus("idle");
-    }
-  }, []);
-
-  const reset = () => {
-    setResult(null);
-    setAudioUrl(null);
-    setError(null);
-    setStatus("idle");
-  };
-
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 px-4 py-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">Voice Analyser</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Estimate perceived vocal masculinity/femininity from pitch and spectral brightness.
-        </p>
-        <p className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-          🔒 Audio is processed locally in memory and never leaves your device.
-        </p>
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-4 py-12">
+      <header className="space-y-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Voice Analyser</p>
+        <h1 className="text-4xl font-bold">Find your voice. Have some fun.</h1>
+        <p className="text-zinc-600 dark:text-zinc-400">Choose an experience. Your recordings stay on your device.</p>
       </header>
-
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {error}
-        </p>
-      )}
-
-      {status === "idle" && <VoiceRecorder onRecorded={handleRecorded} />}
-
-      {status === "analyzing" && (
-        <p className="animate-pulse text-center text-zinc-500 dark:text-zinc-400">Analyzing your voice…</p>
-      )}
-
-      {status === "results" && result && (
-        <>
-          <AnalysisResults result={result} audioUrl={audioUrl} />
-          <button
-            onClick={reset}
-            className="rounded-full bg-violet-600 px-6 py-3 font-medium text-white hover:bg-violet-500"
-          >
-            Record Again
-          </button>
-        </>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Link href="/masculinity" className="rounded-2xl border border-zinc-200 bg-white p-6 transition hover:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-xl font-bold">How masculine is your voice?</h2>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Explore your pitch and vocal brightness.</p>
+          <span className="mt-6 inline-block font-medium text-violet-600 dark:text-violet-400">Start analysing →</span>
+        </Link>
+        <Link href="/mimic" className="rounded-2xl border border-zinc-200 bg-white p-6 transition hover:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-xl font-bold">Let&apos;s mimic some celebrities!</h2>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Listen, record an impression, and compare.</p>
+          <span className="mt-6 inline-block font-medium text-violet-600 dark:text-violet-400">Choose a celebrity →</span>
+        </Link>
+      </div>
     </main>
   );
 }

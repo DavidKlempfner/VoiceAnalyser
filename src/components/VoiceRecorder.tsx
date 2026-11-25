@@ -6,6 +6,9 @@ import FrequencyVisualizer from "./FrequencyVisualizer";
 interface Props {
   onRecorded: (blob: Blob) => void;
   disabled?: boolean;
+  mode?: "analysis" | "mimic";
+  onRecordingStart?: () => void;
+  onRecordingStop?: () => void;
 }
 
 function describeError(err: unknown): string {
@@ -17,8 +20,9 @@ function describeError(err: unknown): string {
   return "Could not start recording. Please check your microphone and try again.";
 }
 
-export default function VoiceRecorder({ onRecorded, disabled }: Props) {
+export default function VoiceRecorder({ onRecorded, disabled, mode = "analysis", onRecordingStart, onRecordingStop }: Props) {
   const [recording, setRecording] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -26,6 +30,8 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
   const ctxRef = useRef<AudioContext | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(false);
+  const startingRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -38,24 +44,34 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       const rec = recorderRef.current;
-      if (rec && rec.state !== "inactive") {
+      if (rec) {
         rec.onstop = null;
-        rec.stop();
+        rec.onerror = null;
+        if (rec.state !== "inactive") rec.stop();
       }
       cleanup();
     };
   }, [cleanup]);
 
   const start = async () => {
+    if (startingRef.current) return;
     setError(null);
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setError("Your browser does not support audio recording.");
       return;
     }
+    startingRef.current = true;
+    setStarting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       const audioContext = new AudioContext();
       ctxRef.current = audioContext;
@@ -74,16 +90,29 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
         const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
         cleanup();
         setRecording(false);
-        onRecorded(blob);
+        onRecordingStop?.();
+        if (blob.size) onRecorded(blob);
+        else setError("The recording was empty. Please try again.");
+      };
+      recorder.onerror = () => {
+        recorder.onstop = null;
+        cleanup();
+        setRecording(false);
+        onRecordingStop?.();
+        setError("Recording failed. Please check your microphone and try again.");
       };
       recorderRef.current = recorder;
       recorder.start();
+      onRecordingStart?.();
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
       setRecording(true);
     } catch (err) {
       cleanup();
-      setError(describeError(err));
+      if (mountedRef.current) setError(describeError(err));
+    } finally {
+      startingRef.current = false;
+      if (mountedRef.current) setStarting(false);
     }
   };
 
@@ -93,14 +122,15 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+      {mode === "analysis" && <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">
           Read aloud for 5–10 seconds
         </p>
         <p className="mt-2 text-lg leading-relaxed">
           “The rainbow is a division of white light into many beautiful colors.”
         </p>
-      </div>
+      </div>}
+      {mode === "mimic" && <p className="text-sm text-zinc-600 dark:text-zinc-400">Listen to the clip, then mimic the same words and delivery.</p>}
 
       <FrequencyVisualizer analyser={analyser} />
 
@@ -116,15 +146,15 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
             onClick={stop}
             className="rounded-full bg-red-600 px-6 py-3 font-medium text-white hover:bg-red-500"
           >
-            Stop recording
+            {mode === "mimic" ? "Stop Recording" : "Stop recording"}
           </button>
         ) : (
           <button
             onClick={start}
-            disabled={disabled}
+            disabled={disabled || starting}
             className="rounded-full bg-violet-600 px-6 py-3 font-medium text-white hover:bg-violet-500 disabled:opacity-50"
           >
-            Start recording
+            {starting ? "Starting…" : mode === "mimic" ? "Mimic" : "Start recording"}
           </button>
         )}
         {recording && (
